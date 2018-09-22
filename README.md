@@ -5,8 +5,8 @@
 1. Clone and unzip the repo
 2. Create an alias if you want a shorter access to the script
 
-	>>> cd ~
-	>>> sudo nano .bash_profile
+	cd ~
+	sudo nano .bash_profile
 
 	alias quotator="python /path/to/quotator.py"
 
