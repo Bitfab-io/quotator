@@ -1,33 +1,28 @@
+"""Command line quoting app for 3D printed parts"""
 import os.path
 import argparse
 
 import trimesh
 
 
-file_path_1 = "/Users/diegotrap/Desktop/otto_body.stl"
-file_path_2 = "/Users/diegotrap/Desktop/CABEZA 1.stl"  # No watertigth
-file_path_3 = "/Users/diegotrap/Desktop/otto_legs.stl"  # Several parts
-file_path_4 = "/Users/diegotrap/Desktop"  # directory
-
-
 SHELL_THICKNESS = 0.12  # cm
 INFILL_RATIO = 0.20
 
 
-FIXED_PRICE_PER_PART = 1.0  # €
+DEFAULT_FIXED_PRICE_PER_PART = 1.0  # €
 DEFAULT_PPCM3 = 0.40  # €
 # ppcm3 refers to the sliced volume, not the mesh volume
 
 
 class PartQuotation():
-    """Class for generating all the part mesh info and calculate the price."""
+    """Class for generating all the part mesh info and calculating the price."""
 
-    def __init__(self, path, unit=None):
+    def __init__(self, path, unit=None, fixed_price=None, ppcm3=None):
         """Populate the PartQuotation instance given a path and mesh units"""
-        
-        if unit == None:
-            unit = "mm"
 
+        # Checking  and cleaning `unit` argument input
+        if unit is None:
+            unit = "mm"
         self.unit = unit
 
         # Setting conversion factors to convert the file units to mm
@@ -40,7 +35,22 @@ class PartQuotation():
         else:
             raise Exception("Cannot recognize the unit code argument provided.")
 
-        
+        # Checking fixed_price argunment and setting default value
+        if fixed_price is None:
+            self.fixed_price = DEFAULT_FIXED_PRICE_PER_PART
+        elif not isinstance(fixed_price, float):
+            raise Exception("Wrong type provided as `fixed_price`. Float required.")
+        else:
+            self.fixed_price = fixed_price
+
+        # Checking ppcm3 argunment and setting default value
+        if ppcm3 is None:
+            self.ppcm3 = DEFAULT_PPCM3
+        elif not isinstance(ppcm3, float):
+            raise Exception("Wrong type provided as `ppcm3`. Float required.")
+        else:
+            self.ppcm3 = ppcm3
+
 
         # Store the part name
         self.name = os.path.basename(path)
@@ -57,13 +67,49 @@ class PartQuotation():
 
         self.sliced_volume = self.surface*SHELL_THICKNESS + (self.volume - self.surface*SHELL_THICKNESS)*INFILL_RATIO #cm3
 
-    def calculate_price(self, price_per_cm3=DEFAULT_PPCM3):
-        price = FIXED_PRICE_PER_PART + self.sliced_volume * price_per_cm3
+    def calculate_price(self):
+        """Calculate the part price using fixed_price and ppcm3 from self"""
+
+        price = self.fixed_price + self.sliced_volume * self.ppcm3
+
         return price
 
-class OrderQuotation:
+    def part_line(self):
+        """Returns a string with the name and price of the part."""
+
+        return "{} - {:.2f}€".format(self.name, self.calculate_price())
+
+class OrderQuotation(object):
+    """Class to create and represent customer orders"""
+
+    parts = []
+
     def add_part_quotation(self, part_quotation):
-        pass
+        """Add a new PartQuotation object to the order."""
+        self.parts.append(part_quotation)
+
+    def calculate_total(self):
+        """Calculate the total price of the order"""
+
+        total = 0.0
+        for part in self.parts:
+            total += part.calculate_price()
+
+        return total
+
+    def print_order(self):
+        """Print out the text of the order"""
+
+
+        print("Part list, price per unit")
+        print("-------------------------")
+
+        for part in self.parts:
+            print(part.part_line())
+
+        print("-------------------------")
+        print("Total: {:.2f}€".format(self.calculate_total()))
+
 
 
 def quotator(path, unit="mm", price_per_cm3=DEFAULT_PPCM3, debug=False):
@@ -72,26 +118,25 @@ def quotator(path, unit="mm", price_per_cm3=DEFAULT_PPCM3, debug=False):
         print("DEBUG INFO: unit = {}".format(unit))
 
     # Checking if the path provided is a file or a directory
-    if os.path.isfile(path) :
+    # If path points to a file we only quote the individual file
+    if os.path.isfile(path):
         if debug:
-            print("DEBUG INFO: `path` is file".format(unit))
+            print("DEBUG INFO: `path` is file")
 
         quoted_part = PartQuotation(path, unit)
-        name = quoted_part.name
-        price = quoted_part.calculate_price(price_per_cm3)
-
-        print("{} - {:.2f}€".format(name, price))
+        print(quoted_part.part_line())
 
     # if the path is a directory, quote all the files inside
     else:
         if debug:
-            print("DEBUG INFO: `path` is dir".format(unit))
+            print("DEBUG INFO: `path` is dir")
 
         files = os.listdir(path)
+        order_quotation = OrderQuotation()
 
         for f in files:
 
-            file_name, extension = os.path.splitext(f)
+            extension = os.path.splitext(f)[1]
 
             if (extension == ".stl") or (extension == ".STL"):
 
@@ -103,10 +148,9 @@ def quotator(path, unit="mm", price_per_cm3=DEFAULT_PPCM3, debug=False):
 
 
                 quoted_part = PartQuotation(part_path, unit)
-                name = quoted_part.name
-                price = quoted_part.calculate_price(price_per_cm3)
+                order_quotation.add_part_quotation(quoted_part)
 
-                print("{} - {:.2f}€".format(name, price))
+        order_quotation.print_order()
 
 
 parser = argparse.ArgumentParser(description="Get 3D print price quotations for a file or directory")
@@ -124,3 +168,7 @@ args = parser.parse_args()
 if __name__ == "__main__":
     quotator(args.path, args.unit, debug=False)
 
+
+    #part = PartQuotation(args.path, fixed_price=10.0)
+    #price = part.calculate_price()
+    #print(price)
