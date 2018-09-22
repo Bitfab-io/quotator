@@ -5,6 +5,7 @@ import argparse
 import trimesh
 
 
+## FDM slicing parameters
 SHELL_THICKNESS = 0.12  # cm
 INFILL_RATIO = 0.20
 
@@ -14,7 +15,7 @@ DEFAULT_PPCM3 = 0.40  # €
 # ppcm3 refers to the sliced volume, not the mesh volume
 
 
-class PartQuotation():
+class PartQuotation(object):
     """Class for generating all the part mesh info and calculating the price."""
 
     def __init__(self, path, unit=None, fixed_price=None, ppcm3=None):
@@ -65,6 +66,12 @@ class PartQuotation():
         self.bounding_box_size = mesh.bounding_box.extents*conversion_factor #unit: mm
         self.number_of_bodies = mesh.split().size
 
+
+class FDMPartQuotation(PartQuotation):
+    """FDM part quotation."""
+
+    def __init__(self, path, unit=None, fixed_price=None, ppcm3=None):
+        super().__init__(path, unit=None, fixed_price=None, ppcm3=None)
         self.sliced_volume = self.surface*SHELL_THICKNESS + (self.volume - self.surface*SHELL_THICKNESS)*INFILL_RATIO #cm3
 
     def calculate_price(self):
@@ -77,7 +84,24 @@ class PartQuotation():
     def part_line(self):
         """Returns a string with the name and price of the part."""
 
-        return "{} - {:.2f}€".format(self.name, self.calculate_price())
+        return "{} (FDM) - {:.2f}€".format(self.name, self.calculate_price())
+
+
+class SLAPartQuotation(PartQuotation):
+    """SLA/DLP part quotation."""
+
+    def calculate_price(self):
+        """Calculate the part price using fixed_price and ppcm3 from self"""
+
+        price = self.fixed_price + self.volume * self.ppcm3
+
+        return price
+
+    def part_line(self):
+        """Returns a string with the name and price of the part."""
+
+        return "{} (SLA) - {:.2f}€".format(self.name, self.calculate_price())
+
 
 class OrderQuotation(object):
     """Class to create and represent customer orders"""
@@ -108,11 +132,15 @@ class OrderQuotation(object):
             print(part.part_line())
 
         print("-------------------------")
-        print("Total: {:.2f}€".format(self.calculate_total()))
+        print("Total: {:.2f}€   ".format(self.calculate_total()))
 
 
 
-def quotator(path, unit="mm", price_per_cm3=DEFAULT_PPCM3, debug=False):
+def quotator(path, unit="mm", technology=None, debug=False):
+    """Function for quotating a file or directory of 3D printed parts."""
+
+    if technology is None:
+        technology = "FDM"
 
     if debug:
         print("DEBUG INFO: unit = {}".format(unit))
@@ -123,7 +151,13 @@ def quotator(path, unit="mm", price_per_cm3=DEFAULT_PPCM3, debug=False):
         if debug:
             print("DEBUG INFO: `path` is file")
 
-        quoted_part = PartQuotation(path, unit)
+        if technology == "FDM":
+            quoted_part = FDMPartQuotation(path, unit)
+        elif technology == "SLA":
+            quoted_part = SLAPartQuotation(path, unit)
+        else:
+            raise Exception("Cannot recognize the technology code argument provided.")
+
         print(quoted_part.part_line())
 
     # if the path is a directory, quote all the files inside
@@ -146,8 +180,13 @@ def quotator(path, unit="mm", price_per_cm3=DEFAULT_PPCM3, debug=False):
                 else:
                     part_path = path + "/" + f
 
+                if technology == "FDM":
+                    quoted_part = FDMPartQuotation(part_path, unit)
+                elif technology == "SLA":
+                    quoted_part = SLAPartQuotation(part_path, unit)
+                else:
+                    raise Exception("Cannot recognize the technology code argument provided.")
 
-                quoted_part = PartQuotation(part_path, unit)
                 order_quotation.add_part_quotation(quoted_part)
 
         order_quotation.print_order()
@@ -161,14 +200,19 @@ parser.add_argument(
     "-u",
     "--unit",
     help="mesh units of the parts to be quoted (mm, cm or in)")
+parser.add_argument(
+    "-t",
+    "--technology",
+    help="3D printing technology (FDM or SLA)")
 
 args = parser.parse_args()
 
 
 if __name__ == "__main__":
-    quotator(args.path, args.unit, debug=False)
+    quotator(args.path, args.unit, args.technology, debug=False)
 
 
     #part = PartQuotation(args.path, fixed_price=10.0)
     #price = part.calculate_price()
     #print(price)
+
