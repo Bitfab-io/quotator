@@ -1,9 +1,15 @@
 # Quotator
 
-## How to use quotator
+## How to install quotator
+
+Quotator is in prototyping stage and it is run as a script from the command line and uses system Python and libraries.
 
 1. Clone and unzip the repo
-2. Create an alias if you want a shorter access to the script
+2. Install the required packages
+
+		pip install trimesh
+
+3. Create an alias if you want a shorter access to the script
 
 
 		cd ~
@@ -11,21 +17,25 @@
 
 		alias quotator="python /path/to/quotator.py"
 
-3. Run `quotator --help` for seeing all the available functions and options
+3. Run `quotator --help` for seeing if the script is working. You can also see the options and usage.
 
-```
-usage: quotator.py [-h] [-u UNIT] path
+## How to use quotator
 
-Get 3D print price quotations for a file or directory
+Use quotator to get prices for 3D printing parts. You can use it on a single `stl`file or in a directory, in which case it will iterate over all the files in the directory and price the `stl`files.
 
-positional arguments:
-  path                  file or directory to be quoted
+For example, to quote all the `stl`files in the current directory, run this in the console:
+	
+	quotator .
+	
+Or to quote a part:
 
-optional arguments:
-  -h, --help            show this help message and exit
-  -u UNIT, --unit UNIT  mesh units of the parts to be quoted (mm, cm or in)
+	quotator /path/to/part.stl
 
-```
+You can change the script variables such as `DEFAULT_FIXED_PRICE_PER_PART` or `DEFAULT_PPCM3` to adapt it to your own pricing system.
+
+## How is the price calculated
+
+To be documented. Check the code for the complete algorithm.
 
 ## License
 
